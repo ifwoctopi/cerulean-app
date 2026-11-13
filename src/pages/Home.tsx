@@ -3,6 +3,7 @@ import { Hero } from "@/components/Hero";
 import { Timeline, useShootStops } from "@/components/Timeline";
 import { CastBoard } from "@/components/CastBoard";
 import { Reveal } from "@/components/Motion";
+import { AnnouncementsSection } from "@/components/Announcements";
 
 export default function Home() {
   const { stops, heading } = useShootStops();
@@ -10,6 +11,7 @@ export default function Home() {
     <>
       <Hero />
       <main className="page">
+        <AnnouncementsSection />
         <Reveal>
           <section className="synopsis" aria-labelledby="syn-h">
             <div className="page-head">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { clockInput, clockText } from "@/lib/format";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { supabase } from "@/lib/supabase";
@@ -194,7 +195,7 @@ function EventEditor({ state, count, allChars, onClose, onSaved }: { state: { da
   useEffect(() => {
     if (!state) return;
     const d = state.day;
-    setF(d ? { date: d.shoot_date, label: d.day_label, title: d.title, loc: d.location, addr: d.address, scenes: d.scenes, crew: d.crew_call !== "TBD" ? d.crew_call : "", cast: d.cast_call !== "TBD" ? d.cast_call : "", wrap: d.wrap !== "TBD" ? d.wrap : "", chars: d.characters, conf: d.confirmed } : blank);
+    setF(d ? { date: d.shoot_date, label: d.day_label, title: d.title, loc: d.location, addr: d.address, scenes: d.scenes, crew: clockInput(d.crew_call), cast: clockInput(d.cast_call), wrap: clockInput(d.wrap), chars: d.characters, conf: d.confirmed } : blank);
     setExtra([]); setNewChar(""); setErr("");
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   const chars = [...allChars, ...extra.filter(c => !allChars.includes(c))];
@@ -203,8 +204,10 @@ function EventEditor({ state, count, allChars, onClose, onSaved }: { state: { da
     if (!f.date) { setErr("Pick a date."); return; }
     if (f.title.trim().length < 2) { setErr("Say what's happening."); return; }
     if (f.loc.trim().length < 2) { setErr("Add a location, or type TBD."); return; }
+    // Times come from time pickers. If an old value was free text that can't be a picker value, keep it unless a time is chosen.
+    const keep = (v: string, old?: string) => (v ? clockText(v) : old && old !== "TBD" && !clockInput(old) ? old : "TBD");
     const row = { shoot_date: f.date, day_label: f.label.trim() || "Event", title: f.title.trim(), location: f.loc.trim(), address: f.addr.trim(), scenes: f.scenes.trim(),
-      crew_call: f.crew.trim() || "TBD", cast_call: f.cast.trim() || "TBD", wrap: f.wrap.trim() || "TBD", characters: f.chars, confirmed: f.conf };
+      crew_call: keep(f.crew, day?.crew_call), cast_call: keep(f.cast, day?.cast_call), wrap: keep(f.wrap, day?.wrap), characters: f.chars, confirmed: f.conf };
     const res = day ? await supabase!.from("shoot_days").update(row).eq("id", day.id)
       : await supabase!.from("shoot_days").insert({ id: "e" + Date.now().toString(36), sort_order: 100 + count, ...row });
     if (res.error) { setErr("Couldn't save: " + res.error.message); return; }
@@ -225,9 +228,9 @@ function EventEditor({ state, count, allChars, onClose, onSaved }: { state: { da
         </div>
         <div className="field"><label htmlFor="ev-scenes">Scenes</label><input type="text" id="ev-scenes" maxLength={200} placeholder="35 (exterior)" value={f.scenes} onChange={set("scenes")} /></div>
         <div className="row">
-          <div className="field"><label htmlFor="ev-crew">Crew call</label><input type="text" id="ev-crew" maxLength={20} placeholder="10:00 AM" value={f.crew} onChange={set("crew")} /></div>
-          <div className="field"><label htmlFor="ev-cast">Cast call</label><input type="text" id="ev-cast" maxLength={20} placeholder="11:00 AM" value={f.cast} onChange={set("cast")} /></div>
-          <div className="field"><label htmlFor="ev-wrap">Wrap</label><input type="text" id="ev-wrap" maxLength={20} placeholder="6:00 PM" value={f.wrap} onChange={set("wrap")} /></div>
+          <div className="field"><label htmlFor="ev-crew">Crew call</label><input type="time" id="ev-crew" value={f.crew} onChange={set("crew")} /></div>
+          <div className="field"><label htmlFor="ev-cast">Cast call</label><input type="time" id="ev-cast" value={f.cast} onChange={set("cast")} /></div>
+          <div className="field"><label htmlFor="ev-wrap">Wrap</label><input type="time" id="ev-wrap" value={f.wrap} onChange={set("wrap")} /></div>
         </div>
         <div className="field">
           <span className="label">Characters on the call sheet</span>

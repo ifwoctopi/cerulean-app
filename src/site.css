@@ -42,12 +42,12 @@ body::after{content:"";position:fixed;inset:-50%;pointer-events:none;z-index:100
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .topbar-in{max-width:1180px;margin:0 auto;padding-block:12px;padding-left:var(--gutter);padding-right:var(--gutter-r);display:flex;flex-wrap:wrap;align-items:center;gap:10px 24px}
 .wordmark{font:800 22px/1 var(--display);letter-spacing:.32em;color:var(--cerulean);text-decoration:none;text-transform:uppercase;text-shadow:0 0 18px var(--glow)}
-.nav{display:flex;flex-wrap:wrap;gap:2px 6px;flex:1}
-.nav a{position:relative;font:500 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);text-decoration:none;padding:10px 12px;border-radius:2px;transition:color .2s}
+.nav{display:flex;flex-wrap:wrap;gap:2px 0;flex:1}
+.nav a{position:relative;font:500 12px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-decoration:none;padding:10px 9px;border-radius:2px;transition:color .2s}
 .nav a:hover{color:var(--text)}
 .nav a[aria-current="page"]{color:var(--text)}
 .nav .hl{position:absolute;inset:0;border-radius:2px;background:rgba(255,255,255,.07);z-index:-1}
-.nav .ul{position:absolute;left:12px;right:12px;bottom:2px;height:2px;background:var(--cerulean);box-shadow:0 0 10px var(--glow)}
+.nav .ul{position:absolute;left:9px;right:9px;bottom:2px;height:2px;background:var(--cerulean);box-shadow:0 0 10px var(--glow)}
 .nav a{z-index:0}
 .nav a.admin-link{color:var(--amber)}
 .nav a.admin-link .ul{background:var(--amber);box-shadow:none}
@@ -75,7 +75,7 @@ h3{font:700 20px/1.15 var(--display);letter-spacing:.06em;text-transform:upperca
 .row{display:flex;flex-wrap:wrap;gap:14px;align-items:end}
 .row>.field{flex:1 1 220px}
 label,.label{font:500 11px/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
-input[type=text],input[type=email],input[type=url],input[type=date],input[type=search],select,textarea{
+input[type=text],input[type=email],input[type=url],input[type=date],input[type=datetime-local],input[type=time],input[type=search],select,textarea{
   font:15px/1.4 var(--body);color:var(--text);background:#000;border:1px solid var(--line-strong);border-radius:3px;padding:11px 12px;width:100%;transition:border-color .15s,box-shadow .15s}
 input[type=file]{font:13px var(--mono);color:var(--dim);max-width:100%}
 textarea{min-height:80px;resize:vertical}
@@ -449,3 +449,22 @@ tr.grp th{background:#000;font:500 10px var(--mono);letter-spacing:.2em;text-tra
 .cal-page .cal-cell.shoot:hover .n{color:#fff;text-shadow:0 0 14px rgba(108,192,255,1)}
 .cal-page .cal-cell.shoot[aria-pressed="true"]{background:linear-gradient(180deg,rgba(62,166,242,.5),rgba(62,166,242,.2));border-color:#6cc0ff;box-shadow:0 0 0 1px #6cc0ff,0 0 40px rgba(62,166,242,.8),inset 0 0 28px rgba(62,166,242,.28)}
 .cal-page .cal-cell.shoot[aria-pressed="true"] .n{color:#fff;text-shadow:0 0 14px rgba(108,192,255,1)}
+
+/* Announcements */
+.anns{display:grid;gap:12px}
+.ann{border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:20px 22px;display:grid;gap:10px;position:relative;transition:border-color .2s}
+.ann:hover{border-color:var(--line-strong)}
+.ann.pinned{border-left:3px solid var(--cerulean)}
+.ann-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ann h3{font:400 26px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0}
+.ann-body{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
+.ann-meet{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 14px;border:1px solid rgba(62,166,242,.45);background:rgba(62,166,242,.08);border-radius:3px;color:var(--cerulean)}
+.ann-meet.past{border-color:var(--line);background:transparent;color:var(--dim)}
+.ann-when{display:grid;gap:2px;flex:1;min-width:180px}
+.ann-when b{font:600 11px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase}
+.ann-when span{font:500 14px var(--mono);color:var(--text)}
+.ann-meet.past .ann-when span{color:var(--dim)}
+
+.heat td.win{background-image:linear-gradient(135deg,transparent 55%,rgba(0,0,0,.55) 55%)}
+
+td small.part{margin-left:4px;font-size:10px;opacity:.7}

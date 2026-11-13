@@ -4,7 +4,7 @@ import { CountingNumber } from "@animate-ui/react/primitives/texts/counting-numb
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useLive } from "@/lib/useLive";
-import { addDays, fmtDate, initials, iso } from "@/lib/format";
+import { addDays, fmtDate, initials, iso, parseClock, windowText } from "@/lib/format";
 import type { CalEntry, Person, ShootDay } from "@/lib/types";
 import { Filter } from "@/components/Filter";
 import { EASE, PageHead, Reveal } from "@/components/Motion";
@@ -13,10 +13,13 @@ type St = "available" | "tentative" | "unavailable";
 const LABEL: Record<St, string> = { available: "Free", tentative: "Maybe", unavailable: "Can't" };
 const FROM_CALL: Record<string, St> = { yes: "available", maybe: "tentative", no: "unavailable" };
 const CHART_FROM = "2026-11-23", CHART_TO = "2026-12-24";
-type Status = { s: St; r: string; t: string; src: "cal" | "call"; entry?: CalEntry };
+type Part = { s: St; r: string; t: string; src: "cal" | "call"; entry?: CalEntry };
+type Status = Part & { parts: Part[] };
+const RANK: Record<St, number> = { available: 0, tentative: 1, unavailable: 2 };
 
 const scheduled = (p: Person, day: ShootDay) => p.department === "crew" || (p.characters || []).some(c => day.characters.includes(c));
 const label = (p: Person) => (p.department === "cast" ? (p.characters || []).join(", ") : p.job);
+const timeText = (e: CalEntry) => [windowText(e), e.time_note].filter(Boolean).join(" · ");
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function Calendar() {
@@ -53,32 +56,55 @@ export default function Calendar() {
   useLive(["calendar_entries", "availability", "people"], load);
 
   const me = useMemo(() => people.find(x => x.user_id === profile!.id) || null, [people, profile]);
-  const entryMap = useMemo(() => { const m: Record<string, CalEntry> = {}; entries.forEach(x => (m[x.person_id + "|" + x.entry_date] = x)); return m; }, [entries]);
+  const entriesBy = useMemo(() => {
+    const m: Record<string, CalEntry[]> = {};
+    entries.forEach(x => (m[x.person_id + "|" + x.entry_date] = m[x.person_id + "|" + x.entry_date] || []).push(x));
+    Object.values(m).forEach(l => l.sort((a, b) => (a.start_time || "").localeCompare(b.start_time || "")));
+    return m;
+  }, [entries]);
   const callMap = useMemo(() => { const m: Record<string, any> = {}; calls.forEach(x => (m[x.person_id + "|" + x.day_id] = x)); return m; }, [calls]);
   const shootBy = useMemo(() => { const m: Record<string, ShootDay[]> = {}; days.forEach(x => (m[x.shoot_date] = m[x.shoot_date] || []).push(x)); return m; }, [days]);
 
-  const statusOf = useCallback((p: Person, date: string): Status | null => {
-    const e = entryMap[p.id + "|" + date];
-    if (e) return { s: e.status, r: e.reason, t: e.time_note, src: "cal", entry: e };
+  const partsOf = useCallback((p: Person, date: string): Part[] => {
+    const es = entriesBy[p.id + "|" + date];
+    if (es?.length) return es.map(e => ({ s: e.status, r: e.reason, t: timeText(e), src: "cal" as const, entry: e }));
     for (const day of shootBy[date] || []) {
       const a = callMap[p.id + "|" + day.id];
-      if (a) return { s: FROM_CALL[a.status], r: a.reason, t: "", src: "call" };
+      if (a) return [{ s: FROM_CALL[a.status], r: a.reason, t: "", src: "call" as const }];
     }
-    return null;
-  }, [entryMap, callMap, shootBy]);
+    return [];
+  }, [entriesBy, callMap, shootBy]);
+  // One status per person per day for the month view and counts: the most serious of their windows.
+  const statusOf = useCallback((p: Person, date: string): Status | null => {
+    const parts = partsOf(p, date);
+    if (!parts.length) return null;
+    return { ...parts.reduce((a, b) => (RANK[b.s] > RANK[a.s] ? b : a)), parts };
+  }, [partsOf]);
   const visible = useMemo(() => filter === "me" ? (me ? [me] : []) : filter === "all" ? people : people.filter(p => p.department === filter), [filter, me, people]);
   const tally = useCallback((date: string) => {
     const n = { available: 0, tentative: 0, unavailable: 0, out: [] as [Person, St][] };
     visible.forEach(p => { const st = statusOf(p, date); if (st) { n[st.s]++; if (st.s !== "available") n.out.push([p, st.s]); } });
     return n;
   }, [visible, statusOf]);
-  const conflictOn = (date: string) => (shootBy[date] || []).some(day => people.some(p => scheduled(p, day) && statusOf(p, date)?.s === "unavailable"));
+  // A conflict is a Can't that overlaps this person's call (crew call or cast call, to wrap) on a shoot day.
+  // If the call times aren't set yet, any Can't that day counts.
+  const conflictFor = useCallback((p: Person, day: ShootDay) => {
+    const call = parseClock(p.department === "crew" ? day.crew_call : day.cast_call), wrap = parseClock(day.wrap);
+    return partsOf(p, day.shoot_date).some(pt => {
+      if (pt.s !== "unavailable") return false;
+      const w = pt.entry;
+      if (!w?.start_time || !w.end_time || call === null || wrap === null) return true;
+      const a = Number(w.start_time.slice(0, 2)) * 60 + Number(w.start_time.slice(3, 5)), b = Number(w.end_time.slice(0, 2)) * 60 + Number(w.end_time.slice(3, 5));
+      return a < wrap && b > call;
+    });
+  }, [partsOf]);
+  const conflictOn = (date: string) => (shootBy[date] || []).some(day => people.some(p => scheduled(p, day) && conflictFor(p, day)));
 
   const conflicts = useMemo(() => {
     let c = 0;
-    days.forEach(day => people.forEach(p => { if (scheduled(p, day) && statusOf(p, day.shoot_date)?.s === "unavailable") c++; }));
+    days.forEach(day => people.forEach(p => { if (scheduled(p, day) && conflictFor(p, day)) c++; }));
     return c;
-  }, [days, people, statusOf]);
+  }, [days, people, conflictFor]);
   const daysToCamera = Math.max(0, Math.ceil((new Date("2026-11-29T11:00:00-05:00").getTime() - Date.now()) / 864e5));
 
   function go(m: Date, d: number) { setDir(d); setMonth(m); }
@@ -110,7 +136,7 @@ export default function Calendar() {
       <PageHead slate="Who's free, when" title="The calendar" lede="Pick any date and mark whether you're free. Shoot days glow blue. A white dot means someone on that day's call sheet can't make it." />
 
       <div className="stats" aria-label="Summary">
-        {([["Days to camera", daysToCamera], ["Cast & crew signed up", people.length], ["Dates marked", entries.length], ["Shoot-day conflicts", conflicts]] as [string, number][]).map(([cap, n], i) => (
+        {([["Days to camera", daysToCamera], ["Cast & crew signed up", people.length], ["Dates marked", Object.keys(entriesBy).length], ["Shoot-day conflicts", conflicts]] as [string, number][]).map(([cap, n], i) => (
           <motion.div key={cap} className={"stat" + (i === 3 ? " bad" : "")} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 + i * 0.07, ease: EASE }}>
             <span className="num">{loaded ? <CountingNumber number={n} transition={{ stiffness: 90, damping: 24 }} /> : 0}</span>
             <span className="cap">{cap}</span>
@@ -180,7 +206,7 @@ export default function Calendar() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={selected} className="drawer-in" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.28, ease: EASE }}>
               {loaded && <Drawer ds={selected} days={days} people={people} me={me} isAdmin={isAdmin} profileId={profile!.id}
-                statusOf={statusOf} entryMap={entryMap} shootBy={shootBy} onChanged={load} onError={m => setStatus({ msg: m, kind: "bad" })} />}
+                statusOf={statusOf} partsOf={partsOf} shootBy={shootBy} onChanged={load} onError={m => setStatus({ msg: m, kind: "bad" })} />}
             </motion.div>
           </AnimatePresence>
         </aside>
@@ -200,8 +226,8 @@ export default function Calendar() {
       <Reveal>
         <section className="panel" aria-labelledby="heat-h">
           <h2 id="heat-h">Everyone, day by day</h2>
-          <p className="hint" style={{ margin: 0 }}>Hover a square for the reason. Older call-date answers show here too.</p>
-          <div className="scroll" style={{ padding: 10 }}><Heat list={visible} statusOf={statusOf} shootBy={shootBy} filter={filter} /></div>
+          <p className="hint" style={{ margin: 0 }}>Hover a square for the reason. A cut corner means specific times only. Older call-date answers show here too.</p>
+          <div className="scroll" style={{ padding: 10 }}><Heat list={visible} partsOf={partsOf} shootBy={shootBy} filter={filter} /></div>
         </section>
       </Reveal>
     </main>
@@ -209,13 +235,13 @@ export default function Calendar() {
 }
 
 /* ---------- drawer: one date ---------- */
-function Drawer({ ds, days: _days, people, me, isAdmin, profileId, statusOf, entryMap, shootBy, onChanged, onError }: {
+function Drawer({ ds, days: _days, people, me, isAdmin, profileId, statusOf, partsOf, shootBy, onChanged, onError }: {
   ds: string; days: ShootDay[]; people: Person[]; me: Person | null; isAdmin: boolean; profileId: string;
-  statusOf: (p: Person, d: string) => Status | null; entryMap: Record<string, CalEntry>; shootBy: Record<string, ShootDay[]>; onChanged: () => Promise<void>; onError: (m: string) => void;
+  statusOf: (p: Person, d: string) => Status | null; partsOf: (p: Person, d: string) => Part[]; shootBy: Record<string, ShootDay[]>; onChanged: () => Promise<void>; onError: (m: string) => void;
 }) {
   const shoot = shootBy[ds] || [];
   const order: St[] = ["unavailable", "tentative", "available"];
-  const rows = people.map(p => [p, statusOf(p, ds)] as const).filter((x): x is readonly [Person, Status] => !!x[1]).sort((a, b) => order.indexOf(a[1].s) - order.indexOf(b[1].s));
+  const rows = people.flatMap(p => partsOf(p, ds).map(pt => [p, pt] as const)).sort((a, b) => order.indexOf(a[1].s) - order.indexOf(b[1].s));
   const missing = shoot.length ? people.filter(p => shoot.some(day => scheduled(p, day)) && !statusOf(p, ds)) : [];
   async function clear(entry: CalEntry) {
     const { error } = await supabase!.from("calendar_entries").delete().eq("id", entry.id);
@@ -240,7 +266,7 @@ function Drawer({ ds, days: _days, people, me, isAdmin, profileId, statusOf, ent
           const canDel = st.src === "cal" && (isAdmin || (me && p.id === me.id));
           const onCall = shoot.some(day => scheduled(p, day));
           return (
-            <motion.div key={p.id} className="entry" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: i * 0.05, ease: EASE }}>
+            <motion.div key={st.entry?.id || p.id + "-call"} className="entry" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: i * 0.05, ease: EASE }}>
               <span className={"pill " + st.s}>{LABEL[st.s]}</span>
               <span className="nm">{p.name}</span>
               {canDel ? <button className="btn small" type="button" aria-label={"Clear " + p.name + "'s entry"} onClick={() => clear(st.entry!)}>Clear</button> : <span />}
@@ -251,22 +277,23 @@ function Drawer({ ds, days: _days, people, me, isAdmin, profileId, statusOf, ent
         })}
       </div>
       {missing.length > 0 && <p className="hint" style={{ margin: 0 }}>On the call sheet with no answer yet: {missing.map(p => p.name).join(", ")}.</p>}
-      <DayForm key={ds} ds={ds} people={people} me={me} isAdmin={isAdmin} profileId={profileId} entryMap={entryMap} onSaved={onChanged} />
+      <DayForm key={ds} ds={ds} people={people} me={me} isAdmin={isAdmin} profileId={profileId} onSaved={onChanged} />
     </>
   );
 }
 
-function DayForm({ ds, people, me, isAdmin, profileId, entryMap, onSaved }: {
-  ds: string; people: Person[]; me: Person | null; isAdmin: boolean; profileId: string; entryMap: Record<string, CalEntry>; onSaved: () => Promise<void>;
+function DayForm({ ds, people, me, isAdmin, profileId, onSaved }: {
+  ds: string; people: Person[]; me: Person | null; isAdmin: boolean; profileId: string; onSaved: () => Promise<void>;
 }) {
   const defaultPid = isAdmin ? (me?.id || people[0]?.id || "") : (me?.id || "");
   const [pid, setPid] = useState(defaultPid);
-  const mineFor = (id: string) => entryMap[id + "|" + ds];
-  const init = mineFor(defaultPid);
-  const [s, setS] = useState<St>(init ? init.status : "unavailable");
+  const [s, setS] = useState<St>("unavailable");
   const [through, setThrough] = useState(ds);
-  const [time, setTime] = useState(init?.time_note || "");
-  const [reason, setReason] = useState(init?.reason || "");
+  const [time, setTime] = useState("");
+  const [allDay, setAllDay] = useState(true);
+  const [from, setFrom] = useState("09:00");
+  const [to, setTo] = useState("17:00");
+  const [reason, setReason] = useState("");
   const [err, setErr] = useState(""); const [ok, setOk] = useState(""); const [busy, setBusy] = useState(false);
 
   if (!me && !isAdmin) return (
@@ -277,29 +304,29 @@ function DayForm({ ds, people, me, isAdmin, profileId, entryMap, onSaved }: {
   );
   if (isAdmin && !people.length) return <div className="field" style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}><h3>Add to the calendar</h3><p className="muted" style={{ margin: 0 }}>Nobody is on the list yet.</p></div>;
 
-  function changePerson(id: string) {
-    setPid(id);
-    const m = mineFor(id);
-    setS(m ? m.status : "unavailable"); setTime(m?.time_note || ""); setReason(m?.reason || "");
-  }
+  const changePerson = (id: string) => setPid(id);
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr(""); setOk("");
     const r = reason.trim(), end = through || ds;
     if (s !== "available" && r.length < 3) { setErr(s === "unavailable" ? "Tell us why you can't make it." : "Tell us what it depends on."); return; }
     if (end < ds) { setErr("The end date has to be on or after " + fmtDate(ds) + "."); return; }
-    const rows = [];
-    for (let d = ds; d <= end && rows.length < 63; d = addDays(d, 1))
-      rows.push({ person_id: pid, entry_date: d, status: s, reason: s === "available" ? "" : r, time_note: time.trim(), created_by: profileId, updated_at: new Date().toISOString() });
+    if (!allDay && (!from || !to)) { setErr("Pick a start and an end time."); return; }
+    if (!allDay && to <= from) { setErr("The end time has to be after the start time."); return; }
+    const dates: string[] = [];
+    for (let d = ds; d <= end && dates.length < 63; d = addDays(d, 1)) dates.push(d);
     setBusy(true);
-    const { error } = await supabase!.from("calendar_entries").upsert(rows, { onConflict: "person_id,entry_date" });
+    // One transaction in the database: all day replaces the person's day, a window replaces anything it overlaps.
+    const rows = dates.length;
+    const { error } = await supabase!.rpc("save_calendar_window", { p_person: pid, p_dates: dates, p_status: s, p_reason: s === "available" ? "" : r, p_note: time.trim(), p_start: allDay ? null : from, p_end: allDay ? null : to });
     setBusy(false);
-    if (error) { console.error(error); setErr(/row-level|permission/i.test(error.message) ? "You can only change your own dates." : "Couldn't save: " + error.message); return; }
-    setOk(rows.length > 1 ? "Saved " + rows.length + " days." : "Saved.");
+    if (error) { console.error(error); setErr(/row-level|permission/i.test(error.message) ? "You can only change your own dates." : /start_time|end_time|schema cache|duplicate|unique|function/i.test(error.message) ? "Several time windows need supabase/calendar_times.sql run in the Supabase SQL Editor." : "Couldn't save: " + error.message); return; }
+    setOk(rows > 1 ? "Saved " + rows + " days." : "Saved."); setReason(""); setTime("");
     onSaved();
   }
   return (
     <form className="field" style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 14 }} noValidate onSubmit={submit}>
       <h3>Add to the calendar</h3>
+      <p className="hint" style={{ margin: 0 }}>Add as many time windows as you need for a day. Saving All day replaces the rest of that day.</p>
       {isAdmin && (
         <div className="field"><label htmlFor="c-person">For</label>
           <select id="c-person" value={pid} onChange={e => changePerson(e.target.value)}>
@@ -312,9 +339,22 @@ function DayForm({ ds, people, me, isAdmin, profileId, entryMap, onSaved }: {
             <label key={k} className={k}><input type="radio" name="c-status" value={k} checked={s === k} onChange={() => setS(k)} />{k === "available" ? "I'm free" : k === "tentative" ? "Maybe" : "Can't make it"}</label>
           ))}
         </div></div>
+      <div className="field"><span className="label">When</span>
+        <div className="seg" role="radiogroup" aria-label="All day or specific times">
+          <label className="plain"><input type="radio" name="c-when" checked={allDay} onChange={() => setAllDay(true)} />All day</label>
+          <label className="plain"><input type="radio" name="c-when" checked={!allDay} onChange={() => setAllDay(false)} />Specific times</label>
+        </div></div>
+      <AnimatePresence initial={false}>
+        {!allDay && (
+          <motion.div key="times" className="row" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>
+            <div className="field" style={{ flexBasis: 130 }}><label htmlFor="c-from">From</label><input type="time" id="c-from" value={from} onChange={e => setFrom(e.target.value)} /></div>
+            <div className="field" style={{ flexBasis: 130 }}><label htmlFor="c-to">To</label><input type="time" id="c-to" value={to} onChange={e => setTo(e.target.value)} /></div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="row">
         <div className="field"><label htmlFor="c-through">Through (for several days)</label><input type="date" id="c-through" min={ds} max={addDays(ds, 62)} value={through} onChange={e => setThrough(e.target.value)} /></div>
-        <div className="field"><label htmlFor="c-time">Time (optional)</label><input type="text" id="c-time" maxLength={80} placeholder="All day, or e.g. after 5 PM" value={time} onChange={e => setTime(e.target.value)} /></div>
+        <div className="field"><label htmlFor="c-time">Note (optional)</label><input type="text" id="c-time" maxLength={80} placeholder="e.g. can leave early" value={time} onChange={e => setTime(e.target.value)} /></div>
       </div>
       <AnimatePresence initial={false}>
         {s !== "available" && (
@@ -375,7 +415,7 @@ function Chart({ visible, tally, shootBy, onPick }: { visible: Person[]; tally: 
 }
 
 /* ---------- heatmap ---------- */
-function Heat({ list, statusOf, shootBy, filter }: { list: Person[]; statusOf: (p: Person, d: string) => Status | null; shootBy: Record<string, ShootDay[]>; filter: string }) {
+function Heat({ list, partsOf, shootBy, filter }: { list: Person[]; partsOf: (p: Person, d: string) => Part[]; shootBy: Record<string, ShootDay[]>; filter: string }) {
   const dates: string[] = []; for (let d = CHART_FROM; d <= CHART_TO; d = addDays(d, 1)) dates.push(d);
   let k = 0;
   return (
@@ -389,12 +429,12 @@ function Heat({ list, statusOf, shootBy, filter }: { list: Person[]; statusOf: (
         {list.map(p => (
           <tr key={p.id}><th scope="row">{p.name}</th>
             {dates.map(d => {
-              const st = statusOf(p, d); const idx = ++k;
+              const parts = partsOf(p, d); const st = parts.length ? parts.reduce((a, b) => (RANK[b.s] > RANK[a.s] ? b : a)) : null; const win = parts.some(x => x.entry?.start_time); const idx = ++k;
               return (
-                <motion.td key={d} className={[st ? st.s[0] : "", shootBy[d] ? "sx" : ""].join(" ").trim() || undefined}
+                <motion.td key={d} className={[st ? st.s[0] : "", win ? "win" : "", shootBy[d] ? "sx" : ""].join(" ").trim() || undefined}
                   initial={{ opacity: 0, scale: 0.6 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.35, delay: Math.min(idx, 160) * 0.006 }}
-                  title={st ? p.name + " · " + fmtDate(d, { month: "short", day: "numeric" }) + ": " + LABEL[st.s] + (st.t ? " (" + st.t + ")" : "") + (st.r ? " — " + st.r : "") : undefined}
-                  aria-label={st ? LABEL[st.s] : "No entry"} />
+                  title={parts.length ? p.name + " · " + fmtDate(d, { month: "short", day: "numeric" }) + "\n" + parts.map(x => LABEL[x.s] + (x.t ? " (" + x.t + ")" : "") + (x.r ? " — " + x.r : "")).join("\n") : undefined}
+                  aria-label={parts.length ? parts.map(x => LABEL[x.s] + (x.t ? " " + x.t : "")).join(", ") : "No entry"} />
               );
             })}
           </tr>
