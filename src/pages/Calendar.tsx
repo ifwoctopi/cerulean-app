@@ -4,6 +4,7 @@ import { CountingNumber } from "@animate-ui/react/primitives/texts/counting-numb
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useLive } from "@/lib/useLive";
+import { isOnCall, personLabel } from "@/lib/roles";
 import { addDays, fmtDate, initials, iso, parseClock, windowText } from "@/lib/format";
 import type { CalEntry, Person, ShootDay } from "@/lib/types";
 import { Filter } from "@/components/Filter";
@@ -17,8 +18,8 @@ type Part = { s: St; r: string; t: string; src: "cal" | "call"; entry?: CalEntry
 type Status = Part & { parts: Part[] };
 const RANK: Record<St, number> = { available: 0, tentative: 1, unavailable: 2 };
 
-const scheduled = (p: Person, day: ShootDay) => p.department === "crew" || (p.characters || []).some(c => day.characters.includes(c));
-const label = (p: Person) => (p.department === "cast" ? (p.characters || []).join(", ") : p.job);
+const scheduled = isOnCall;
+const label = personLabel;
 const timeText = (e: CalEntry) => [windowText(e), e.time_note].filter(Boolean).join(" · ");
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -33,7 +34,7 @@ export default function Calendar() {
   const [calls, setCalls] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<{ msg: string; kind?: string } | null>(null);
-  const [filter, setFilter] = useState<"all" | "cast" | "crew" | "me">("all");
+  const [filter, setFilter] = useState<"all" | "cast" | "crew" | "extra" | "me">("all");
   const [month, setMonth] = useState(() => todayIso > "2026-12-31" ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date(2026, 10, 1));
   const [dir, setDir] = useState(1);
   const [selected, setSelected] = useState(todayIso >= "2026-11-01" && todayIso <= "2026-12-31" ? todayIso : "2026-11-29");
@@ -161,7 +162,7 @@ export default function Calendar() {
               </h2>
               <button className="btn small" type="button" aria-label="Next month" onClick={() => go(new Date(month.getFullYear(), month.getMonth() + 1, 1), 1)}>→</button>
             </div>
-            <Filter value={filter} onChange={setFilter} options={[["all", "Everyone"], ["cast", "Cast"], ["crew", "Crew"], ["me", "Just me"]]} />
+            <Filter value={filter} onChange={setFilter} options={[["all", "Everyone"], ["cast", "Cast"], ["crew", "Crew"], ["extra", "Extras"], ["me", "Just me"]]} />
           </div>
           <div className="cal-grid" aria-hidden="true">{DOW.map(d => <div key={d} className="cal-dow">{d}</div>)}</div>
           <motion.div key={monthKey} className="cal-grid" role="grid" aria-label="Month" ref={gridRef} onKeyDown={onGridKey}

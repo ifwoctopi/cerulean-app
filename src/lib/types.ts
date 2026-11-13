@@ -7,7 +7,7 @@ export interface ShootDay {
   scenes: string; crew_call: string; cast_call: string; wrap: string; characters: string[]; confirmed: boolean; sort_order: number;
 }
 export interface Person {
-  id: string; user_id: string | null; name: string; department: "cast" | "crew"; characters: string[]; job: string; notes: string;
+  id: string; user_id: string | null; name: string; department: "cast" | "crew" | "extra"; characters: string[]; job: string; notes: string;
 }
 export interface Answer { s: "yes" | "maybe" | "no"; r: string }
 export interface CalEntry {

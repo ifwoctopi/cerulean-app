@@ -16,7 +16,7 @@ const card = { initial: { opacity: 0, y: 22 }, animate: { opacity: 1, y: 0 }, ex
 export default function Signup() {
   const { session, loading } = useAuth();
   const [name, setName] = useState(""); const [email, setEmail] = useState("");
-  const [dept, setDept] = useState<"cast" | "crew">("cast");
+  const [dept, setDept] = useState<"cast" | "crew" | "extra">("cast");
   const [chars, setChars] = useState<string[]>([]);
   const [job, setJob] = useState(""); const [jobOther, setJobOther] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [sent, setSent] = useState("");
@@ -27,7 +27,7 @@ export default function Signup() {
     const { error } = await supabase.auth.signInWithOtp({
       email: addr,
       options: { shouldCreateUser: true, emailRedirectTo: window.location.origin + "/auth/confirm",
-        data: { full_name: n, department: dept, characters: dept === "cast" ? chars : [], job: dept === "crew" ? finalJob : "" } },
+        data: { full_name: n, department: dept, characters: dept === "cast" ? chars : dept === "extra" ? ["Extras"] : [], job: dept === "crew" ? finalJob : "" } },
     });
     if (!error) return null;
     return /signups? not allowed|disabled/i.test(error.message) ? "Sign-ups are switched off right now. Ask the producer to invite you."
@@ -93,6 +93,7 @@ export default function Signup() {
                 <div className="seg big" role="radiogroup" aria-label="Cast or crew">
                   <label className="plain"><input type="radio" name="dept" checked={dept === "cast"} onChange={() => setDept("cast")} />Cast</label>
                   <label className="plain"><input type="radio" name="dept" checked={dept === "crew"} onChange={() => setDept("crew")} />Crew</label>
+                  <label className="plain"><input type="radio" name="dept" checked={dept === "extra"} onChange={() => setDept("extra")} />Extra</label>
                 </div>
               </div>
               <AnimatePresence mode="wait" initial={false}>
@@ -105,6 +106,10 @@ export default function Signup() {
                       ))}
                     </div>
                     <span className="hint">Pick every part you play. Not sure yet? Pick the closest one and the producer can fix it.</span>
+                  </motion.div>
+                ) : dept === "extra" ? (
+                  <motion.div key="extra" className="field" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>
+                    <span className="hint">Background and non-speaking roles. You'll be on the call sheet for the days that need extras, and you can mark which dates you're free on the calendar.</span>
                   </motion.div>
                 ) : (
                   <motion.div key="crew" className="field" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>

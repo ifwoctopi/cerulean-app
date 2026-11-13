@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { supabase } from "@/lib/supabase";
 import { useLive } from "@/lib/useLive";
 import { fmtDate, windowText } from "@/lib/format";
+import { deptName, isOnCall, personLabel } from "@/lib/roles";
 import type { Person, ShootDay } from "@/lib/types";
 import { Filter } from "@/components/Filter";
 import { EASE, PageHead } from "@/components/Motion";
@@ -13,8 +14,8 @@ type Part = { s: A; r: string; w: string };
 const RANK: Record<A, number> = { yes: 0, maybe: 1, no: 2 };
 const worst = (ps?: Part[]) => (ps && ps.length ? ps.reduce((a, b) => (RANK[b.s] > RANK[a.s] ? b : a)) : undefined);
 const FROM_CAL: Record<string, A> = { available: "yes", tentative: "maybe", unavailable: "no" };
-const scheduled = (p: { department: string; characters: string[] }, d: ShootDay) => p.department === "crew" || (p.characters || []).some(c => d.characters.includes(c));
-const label = (p: Person) => (p.department === "cast" ? (p.characters || []).join(", ") : p.job);
+const scheduled = isOnCall;
+const label = personLabel;
 const short = (d: ShootDay) => fmtDate(d.shoot_date, { month: "short", day: "numeric" });
 const long = (d: ShootDay) => fmtDate(d.shoot_date, { weekday: "short", month: "short", day: "numeric" });
 
@@ -26,7 +27,7 @@ export default function Availability() {
   const [characters, setCharacters] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "cast" | "crew">("all");
+  const [filter, setFilter] = useState<"all" | "cast" | "crew" | "extra">("all");
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -68,7 +69,7 @@ export default function Availability() {
 
 function Board({ days, people, answers, characters, filter, setFilter, refresh, loaded }: {
   days: ShootDay[]; people: Person[]; answers: Record<string, Record<string, Part[]>>; characters: string[];
-  filter: "all" | "cast" | "crew"; setFilter: (f: "all" | "cast" | "crew") => void; refresh: () => Promise<unknown>; loaded: boolean;
+  filter: "all" | "cast" | "crew" | "extra"; setFilter: (f: "all" | "cast" | "crew" | "extra") => void; refresh: () => Promise<unknown>; loaded: boolean;
 }) {
   const claimed = new Set(people.flatMap(p => p.characters || []));
   const open = characters.filter(c => !claimed.has(c));
@@ -76,7 +77,7 @@ function Board({ days, people, answers, characters, filter, setFilter, refresh, 
     d, probs: people.flatMap(p => (answers[p.id]?.[d.id] || []).filter(x => x.s !== "yes").map(a => ({ p, a })))
       .sort((x, y) => (RANK[y.a.s] - RANK[x.a.s]) || (Number(scheduled(y.p, d)) - Number(scheduled(x.p, d)))),
   })).filter(x => x.probs.length);
-  const groups = (filter === "all" ? ["cast", "crew"] : [filter]) as ("cast" | "crew")[];
+  const groups = (filter === "all" ? ["cast", "crew", "extra"] : [filter]) as ("cast" | "crew" | "extra")[];
   let rows = 0;
   return (
     <div style={{ display: "grid", gap: 28 }}>
@@ -128,7 +129,7 @@ function Board({ days, people, answers, characters, filter, setFilter, refresh, 
       <div className="panel">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <h2>Everyone</h2>
-          <Filter value={filter} onChange={setFilter} options={[["all", "All"], ["cast", "Cast"], ["crew", "Crew"]]} />
+          <Filter value={filter} onChange={setFilter} options={[["all", "All"], ["cast", "Cast"], ["crew", "Crew"], ["extra", "Extras"]]} />
         </div>
         <div className="legend"><span className="c-yes">✓ Coming</span><span className="c-maybe">? Maybe</span><span className="c-no">✕ Can't</span><span>· No answer</span><span>◐ Specific times</span><span>Empty: not on that call sheet</span></div>
         <div className="scroll">
@@ -139,7 +140,7 @@ function Board({ days, people, answers, characters, filter, setFilter, refresh, 
                 const list = people.filter(p => p.department === g);
                 if (!list.length) return null;
                 return [
-                  <tr key={g} className="grp"><th colSpan={days.length + 1}>{g === "cast" ? "Cast" : "Crew"}</th></tr>,
+                  <tr key={g} className="grp"><th colSpan={days.length + 1}>{g === "extra" ? "Extras" : deptName(g)}</th></tr>,
                   ...list.map(p => { rows++; return (
                     <tr key={p.id}>
                       <th scope="row" title={p.notes ? "Notes: " + p.notes : undefined}>{p.name}<small>{label(p)}</small></th>

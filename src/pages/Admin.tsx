@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { clockInput, clockText } from "@/lib/format";
+import { DEPTS, EXTRAS, deptName, personLabel, type Dept } from "@/lib/roles";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { supabase } from "@/lib/supabase";
@@ -11,7 +12,7 @@ import { EASE, PageHead } from "@/components/Motion";
 import { SiteTabs, TabsContent } from "@/components/SiteTabs";
 
 interface Prof { id: string; full_name: string; role: "admin" | "member"; approved: boolean; created_at: string }
-const label = (p: Person) => (p.department === "cast" ? (p.characters || []).join(", ") : p.job);
+const label = personLabel;
 const BASE = ["Asante", "Gaia", "Eli", "David", "Sage"];
 
 function Row({ i, children }: { i: number; children: React.ReactNode }) {
@@ -113,8 +114,8 @@ export default function Admin() {
               <AnimatePresence initial={false}>
                 {people.map((p, i) => (
                   <Row key={p.id} i={i}>
-                    <div className="when">{p.department === "cast" ? "Cast" : "Crew"}<small>{p.user_id ? "Signed in" : "Not signed in"}</small></div>
-                    <div className="what"><b>{p.name}</b><span className="meta">{p.department === "cast" ? "Plays " + label(p) : label(p)}</span></div>
+                    <div className="when">{deptName(p.department)}<small>{p.user_id ? "Signed in" : "Not signed in"}</small></div>
+                    <div className="what"><b>{p.name}</b><span className="meta">{p.department === "cast" ? "Plays " + label(p) : p.department === "extra" ? "Background extra" : label(p)}</span></div>
                     <div className="actions">
                       {confirm === "p" + p.id ? (<><span className="hint">Remove {p.name} and their answers?</span>
                         <button className="btn small danger" type="button" onClick={() => delPerson(p)}>Remove</button><button className="btn small" type="button" onClick={() => setConfirm(null)}>Keep</button></>)
@@ -152,7 +153,7 @@ function AccessRow({ i, p, me, roster, onChanged }: { i: number; p: Prof; me: bo
   const [msg, setMsg] = useState<{ t: string; bad?: boolean } | null>(null);
   const [role, setRole] = useState(p.role);
   useEffect(() => setRole(p.role), [p.role]);
-  const signedUpAs = roster ? (roster.department === "cast" ? "Cast · plays " + (roster.characters || []).join(", ") : "Crew · " + roster.job) : "Not on the cast & crew list";
+  const signedUpAs = roster ? (roster.department === "cast" ? "Cast · plays " + (roster.characters || []).join(", ") : roster.department === "extra" ? "Extra" : "Crew · " + roster.job) : "Not on the cast & crew list";
   if (p.approved === false && p.role !== "admin") {
     const decide = async (allow: boolean) => {
       const { error } = await supabase!.rpc("set_user_access", { target: p.id, allow });
@@ -198,7 +199,7 @@ function EventEditor({ state, count, allChars, onClose, onSaved }: { state: { da
     setF(d ? { date: d.shoot_date, label: d.day_label, title: d.title, loc: d.location, addr: d.address, scenes: d.scenes, crew: clockInput(d.crew_call), cast: clockInput(d.cast_call), wrap: clockInput(d.wrap), chars: d.characters, conf: d.confirmed } : blank);
     setExtra([]); setNewChar(""); setErr("");
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
-  const chars = [...allChars, ...extra.filter(c => !allChars.includes(c))];
+  const chars = [...(allChars.includes(EXTRAS) ? allChars : [...allChars, EXTRAS]), ...extra.filter(c => !allChars.includes(c) && c !== EXTRAS)];
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr("");
     if (!f.date) { setErr("Pick a date."); return; }
@@ -249,14 +250,14 @@ function EventEditor({ state, count, allChars, onClose, onSaved }: { state: { da
 
 function PersonEditor({ state, allChars, onClose, onSaved }: { state: { person: Person | null } | null; allChars: string[]; onClose: () => void; onSaved: () => void }) {
   const p = state?.person || null;
-  const [name, setName] = useState(""); const [dept, setDept] = useState<"cast" | "crew">("cast"); const [chars, setChars] = useState<string[]>([]); const [job, setJob] = useState(""); const [err, setErr] = useState("");
+  const [name, setName] = useState(""); const [dept, setDept] = useState<Dept>("cast"); const [chars, setChars] = useState<string[]>([]); const [job, setJob] = useState(""); const [err, setErr] = useState("");
   useEffect(() => { if (!state) return; setName(p?.name || ""); setDept(p?.department || "cast"); setChars(p?.characters || []); setJob(p?.job || ""); setErr(""); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr("");
     if (name.trim().length < 2) { setErr("Add a name."); return; }
     if (dept === "cast" && !chars.length) { setErr("Pick at least one character."); return; }
     if (dept === "crew" && job.trim().length < 2) { setErr("Add their job on set."); return; }
-    const row = { name: name.trim(), department: dept, characters: dept === "cast" ? chars : [], job: dept === "cast" ? "" : job.trim(), updated_at: new Date().toISOString() };
+    const row = { name: name.trim(), department: dept, characters: dept === "cast" ? chars : dept === "extra" ? [EXTRAS] : [], job: dept === "crew" ? job.trim() : "", updated_at: new Date().toISOString() };
     const res = p ? await supabase!.from("people").update(row).eq("id", p.id) : await supabase!.from("people").insert(row);
     if (res.error) { setErr("Couldn't save: " + res.error.message); return; }
     onSaved();
@@ -267,10 +268,12 @@ function PersonEditor({ state, allChars, onClose, onSaved }: { state: { person: 
         <div className="field"><label htmlFor="p-name">Name</label><input type="text" id="p-name" maxLength={80} value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="field"><span className="label">Department</span>
           <div className="seg" role="radiogroup" aria-label="Department">
-            {(["cast", "crew"] as const).map(d => <label key={d} className="plain"><input type="radio" name="p-dept" checked={dept === d} onChange={() => setDept(d)} />{d === "cast" ? "Cast" : "Crew"}</label>)}
+            {DEPTS.map(d => <label key={d} className="plain"><input type="radio" name="p-dept" checked={dept === d} onChange={() => setDept(d)} />{deptName(d)}</label>)}
           </div></div>
         {dept === "cast"
-          ? <div className="field"><span className="label">Plays</span><Chips all={allChars} selected={chars} onChange={setChars} /></div>
+          ? <div className="field"><span className="label">Plays</span><Chips all={allChars.filter(c => c !== EXTRAS)} selected={chars} onChange={setChars} /></div>
+          : dept === "extra"
+          ? <p className="hint" style={{ margin: 0 }}>Extras are on an event's call sheet when you tick "Extras" on that event.</p>
           : <div className="field"><label htmlFor="p-job">Job on set</label><input type="text" id="p-job" maxLength={80} value={job} onChange={e => setJob(e.target.value)} /></div>}
         <div className="actions"><button className="btn primary" type="submit">Save</button><button className="btn" type="button" onClick={onClose}>Cancel</button><span className="err" role="alert">{err}</span></div>
       </form>

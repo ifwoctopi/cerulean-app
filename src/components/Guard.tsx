@@ -23,7 +23,7 @@ function Pending() {
   useEffect(() => {
     if (!supabase || !profile) return;
     supabase.from("people").select("department, characters, job").eq("user_id", profile.id).maybeSingle().then(({ data }) => {
-      if (data) setLine(data.department === "cast" ? "You signed up as cast, playing " + (data.characters || []).join(", ") + "." : "You signed up as crew: " + data.job + ".");
+      if (data) setLine(data.department === "cast" ? "You signed up as cast, playing " + (data.characters || []).join(", ") + "." : data.department === "extra" ? "You signed up as an extra." : "You signed up as crew: " + data.job + ".");
     });
   }, [profile]);
   const first = profile?.full_name ? ", " + profile.full_name.split(" ")[0] : "";
