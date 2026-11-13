@@ -24,15 +24,20 @@
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
         <td bgcolor="#3ea6f2" style="background:#3ea6f2;border-radius:2px;">
-          <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:16px 30px;font-family:'Courier New',Courier,monospace;font-size:13px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#03111c;text-decoration:none;">Sign me in</a>
+          <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=email" target="_blank" style="display:inline-block;padding:16px 30px;font-family:'Courier New',Courier,monospace;font-size:13px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#03111c;text-decoration:none;">Sign me in</a>
         </td>
       </tr></table>
 
+      <div style="margin:26px 0 0;padding:18px 20px;border:1px solid #232326;border-radius:3px;background:#050505;">
+        <div style="font-family:'Courier New',Courier,monospace;font-size:11px;line-height:1.4;letter-spacing:3px;text-transform:uppercase;color:#7d7d84;">Or type this code on the site</div>
+        <div style="margin-top:8px;font-family:'Courier New',Courier,monospace;font-size:30px;line-height:1;letter-spacing:8px;font-weight:bold;color:#f4f4f5;">{{ .Token }}</div>
+      </div>
+
       <p style="margin:30px 0 0;padding-top:22px;border-top:1px solid #232326;font-family:'Courier New',Courier,monospace;font-size:12px;line-height:1.7;color:#7d7d84;">This link works once and expires soon, so use it on the device you want to sign in on. Didn't ask for it? Ignore this email. Nobody can sign in without it.</p>
-      <p style="margin:14px 0 0;font-family:'Courier New',Courier,monospace;font-size:11px;line-height:1.6;color:#5e5e65;word-break:break-all;">Button not working? Paste this into your browser:<br><a href="{{ .ConfirmationURL }}" style="color:#3ea6f2;text-decoration:none;">{{ .ConfirmationURL }}</a></p>
+      <p style="margin:14px 0 0;font-family:'Courier New',Courier,monospace;font-size:11px;line-height:1.6;color:#5e5e65;word-break:break-all;">Button not working? Paste this into your browser:<br><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=email" style="color:#3ea6f2;text-decoration:none;">{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=email</a></p>
     </td></tr>
 
-    <tr><td align="center" style="padding:26px 8px 0;font-family:'Courier New',Courier,monospace;font-size:11px;line-height:1.7;letter-spacing:2px;text-transform:uppercase;color:#5e5e65;">Cerulean &middot; a production by the cast &amp; crew</td></tr>
+    <tr><td align="center" style="padding:26px 8px 0;font-family:'Courier New',Courier,monospace;font-size:11px;line-height:1.7;letter-spacing:2px;text-transform:uppercase;color:#5e5e65;">Cerulean &middot; a production by A&amp;T and UNCG students &amp; alumni</td></tr>
   </table>
 </td></tr>
 </table>

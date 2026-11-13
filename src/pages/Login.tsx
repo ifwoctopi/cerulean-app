@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { EMAIL_RE } from "@/lib/format";
 import { EASE } from "@/components/Motion";
 import { ResendLink } from "@/components/ResendLink";
+import { CodeEntry } from "@/components/CodeEntry";
 
 const card = { initial: { opacity: 0, y: 22, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: -14, scale: 0.98 }, transition: { duration: 0.4, ease: EASE } };
 
@@ -21,7 +22,8 @@ export default function Login() {
   // Returns an error message, or null when the link was sent.
   async function sendLink(addr: string): Promise<string | null> {
     if (!supabase) return "Not connected.";
-    const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + (next.startsWith("/") ? next : "/" + next) } });
+    try { localStorage.setItem("cerulean-next", next.startsWith("/") ? next : "/" + next); } catch { /* private mode */ }
+    const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + "/auth/confirm" } });
     if (!error) return null;
     return /signups? not allowed|not found|disabled/i.test(error.message) ? "There's no account for that email yet. Sign up first, using the link below."
       : /rate|seconds/i.test(error.message) ? "Too many tries. Wait a minute, then send it again." : "Couldn't send the link: " + error.message;
@@ -57,12 +59,14 @@ export default function Login() {
               <div className="slate">Check your inbox</div><h2>Link sent</h2>
               <p style={{ margin: 0 }}>We sent a sign-in link to <b>{email.trim()}</b>. Open it on this device. It works once and expires in an hour.</p>
               <p className="hint" style={{ margin: 0 }}>Nothing after a few minutes? Check spam, or ask the producer to make sure you've been invited.</p>
+              <CodeEntry email={email.trim()} next={next.startsWith("/") ? next : "/" + next} />
               <ResendLink send={() => sendLink(email.trim())} />
               <div className="actions"><button className="btn" type="button" onClick={() => setSent(false)}>Use a different email</button></div>
             </motion.div>
           ) : (
             <motion.form key="form" className="panel corner" onSubmit={submit} noValidate {...card}>
               <div className="slate">Crew access</div>
+              {params.get("expired") && <div className="notice warn">That sign-in link expired or was already used. Enter your email to get a fresh one.</div>}
               <h1 style={{ fontSize: 44 }}>Sign in</h1>
               <p className="muted" style={{ margin: 0 }}>Enter your email and we'll send you a sign-in link. No password needed.</p>
               <div className="field"><label htmlFor="email">Email</label><input type="email" id="email" autoComplete="email" autoFocus value={email} onChange={e => setEmail(e.target.value)} /></div>

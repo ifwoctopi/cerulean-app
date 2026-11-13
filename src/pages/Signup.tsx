@@ -7,6 +7,7 @@ import { EMAIL_RE } from "@/lib/format";
 import { EASE, PageHead } from "@/components/Motion";
 import { Dropdown } from "@/components/Dropdown";
 import { ResendLink } from "@/components/ResendLink";
+import { CodeEntry } from "@/components/CodeEntry";
 
 const CAST = ["Asante", "Gaia", "Eli", "David", "Sage", "Remy", "Michaela", "Tia", "Veronica", "Caught Scientist", "Perceptron Rep", "Asante's Dad", "Ava", "Cole", "Truck Driver", "Random Man", "Random (bathroom)", "Food Runner 1", "Food Runner 2", "Food Runner 3"];
 const JOBS = ["Director", "Producer", "Assistant director", "Director of photography", "Camera operator", "Camera assistant", "Gaffer / lighting", "Grip", "Sound", "Hair & makeup", "Wardrobe", "Production design", "Props", "Script supervisor", "Production assistant", "Editor", "VFX", "Photographer / BTS", "Other"];
@@ -25,7 +26,7 @@ export default function Signup() {
     if (!supabase) return "Not connected.";
     const { error } = await supabase.auth.signInWithOtp({
       email: addr,
-      options: { shouldCreateUser: true, emailRedirectTo: window.location.origin + "/calendar",
+      options: { shouldCreateUser: true, emailRedirectTo: window.location.origin + "/auth/confirm",
         data: { full_name: n, department: dept, characters: dept === "cast" ? chars : [], job: dept === "crew" ? finalJob : "" } },
     });
     if (!error) return null;
@@ -79,6 +80,7 @@ export default function Signup() {
               <div className="slate">Check your inbox</div><h2>Almost there</h2>
               <p style={{ margin: 0 }}>We sent a link to <b>{sent}</b>. Open it on this device to finish signing up.</p>
               <p className="hint" style={{ margin: 0 }}>After that, the producer approves you, usually within a day. You'll be able to mark your dates as soon as they do. Already had an account? The link just signs you in.</p>
+              <CodeEntry email={sent} />
               <ResendLink send={() => sendSignup(sent, name.trim(), job === "Other" ? jobOther.trim() : job)} />
               <div className="actions"><button className="btn" type="button" onClick={() => setSent("")}>Use a different email</button></div>
             </motion.div>
