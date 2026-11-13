@@ -26,9 +26,9 @@ export default function Home() {
               </dl>
             </div>
             <div>
-              <p>Asante works the front desk at a nursing home in a small town that a company called Perceptron keeps trying to buy, one property at a time. She oversleeps, she's on her last warning, and her best friend Gaia is the only one still covering for her.</p>
-              <p>Then the storm hits. The residents, the staff and half the town end up in an emergency shelter run by a calm woman named Michaela, who promises rescue in a week. Asante, Gaia and Eli set up camp next to a stranger named David and a furious teenager named Sage.</p>
-              <p>Inside, the days stop adding up. Asante loses hours at a time. Her dreams leak into the hallways. People who were there yesterday are gone, and nobody else remembers them. And at night, the lights turn blue.</p>
+              <p>The film follows Asante, a young woman who ends up in a government relief shelter after a natural disaster. She starts having intense, vivid dreams, then realizes the shelter is actually a lab experimenting on her community. </p>
+              <p>At its core, Cerulean Tether is about how governments and corporations take advantage of low-income communities and communities of color when they're at their most vulnerable. We've seen it after Hurricane Katrina and in Gary Indiana's recent water crisis.</p>
+              <p>As climate change makes disasters more frequent, more people will be displaced, and more communities will be exposed to that kind of exploitation.</p>
             </div>
           </section>
         </Reveal>
