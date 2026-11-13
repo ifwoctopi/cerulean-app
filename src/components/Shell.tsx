@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Menu, X } from "lucide-react";
 import { Link, NavLink, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useAuth } from "@/lib/auth";
@@ -11,12 +12,17 @@ function TopBar() {
   const { profile, signOut } = useAuth();
   const { pathname } = useLocation();
   const [hover, setHover] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [pathname]);
   const links: [string, string][] = [...PAGES, ...(profile?.role === "admin" ? [["/availability", "Call dates"] as [string, string], ["/admin", "Manage"] as [string, string]] : [])];
   return (
-    <motion.header className="topbar" initial={{ y: "-100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, ease: EASE }}>
+    <motion.header className={"topbar" + (open ? " open" : "")} initial={{ y: "-100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, ease: EASE }}>
       <div className="topbar-in">
         <Link className="wordmark" to="/" aria-label="Cerulean home">Cerulean</Link>
-        <nav className="nav" aria-label="Site" onMouseLeave={() => setHover(null)}>
+        <button className="menu-btn" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} aria-controls="site-nav" onClick={() => setOpen(o => !o)}>
+          {open ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
+        </button>
+        <nav className="nav" id="site-nav" aria-label="Site" onMouseLeave={() => setHover(null)}>
           {links.map(([to, label]) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
             return (
@@ -29,7 +35,7 @@ function TopBar() {
             );
           })}
         </nav>
-        <div className="who">
+        <div className={"who" + (profile ? "" : " out")}>
           {profile ? (
             <>
               <span className="rec" aria-hidden="true" />

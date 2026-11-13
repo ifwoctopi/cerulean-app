@@ -5,6 +5,7 @@ import { supabase, connected } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { EMAIL_RE } from "@/lib/format";
 import { EASE } from "@/components/Motion";
+import { ResendLink } from "@/components/ResendLink";
 
 const card = { initial: { opacity: 0, y: 22, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: -14, scale: 0.98 }, transition: { duration: 0.4, ease: EASE } };
 
@@ -17,19 +18,22 @@ export default function Login() {
 
   useEffect(() => { if (session && !loading && params.get("next")) nav(next.startsWith("/") ? next : "/" + next, { replace: true }); }, [session, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Returns an error message, or null when the link was sent.
+  async function sendLink(addr: string): Promise<string | null> {
+    if (!supabase) return "Not connected.";
+    const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + (next.startsWith("/") ? next : "/" + next) } });
+    if (!error) return null;
+    return /signups? not allowed|not found|disabled/i.test(error.message) ? "There's no account for that email yet. Sign up first, using the link below."
+      : /rate|seconds/i.test(error.message) ? "Too many tries. Wait a minute, then send it again." : "Couldn't send the link: " + error.message;
+  }
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr("");
     const addr = email.trim();
     if (!EMAIL_RE.test(addr)) { setErr("Enter a full email address."); return; }
-    if (!supabase) return;
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + (next.startsWith("/") ? next : "/" + next) } });
+    const problem = await sendLink(addr);
     setBusy(false);
-    if (error) {
-      setErr(/signups? not allowed|not found|disabled/i.test(error.message) ? "There's no account for that email yet. Sign up first, using the link below."
-        : /rate|seconds/i.test(error.message) ? "Too many tries. Wait a minute, then send it again." : "Couldn't send the link: " + error.message);
-      return;
-    }
+    if (problem) { setErr(problem); return; }
     setSent(true);
   }
 
@@ -53,6 +57,7 @@ export default function Login() {
               <div className="slate">Check your inbox</div><h2>Link sent</h2>
               <p style={{ margin: 0 }}>We sent a sign-in link to <b>{email.trim()}</b>. Open it on this device. It works once and expires in an hour.</p>
               <p className="hint" style={{ margin: 0 }}>Nothing after a few minutes? Check spam, or ask the producer to make sure you've been invited.</p>
+              <ResendLink send={() => sendLink(email.trim())} />
               <div className="actions"><button className="btn" type="button" onClick={() => setSent(false)}>Use a different email</button></div>
             </motion.div>
           ) : (
