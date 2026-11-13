@@ -27,6 +27,8 @@ export default function Home() {
             </div>
             <div>
               <p>Displaced by disaster, Asante takes refuge in a government relief shelter. The beds are warm, the staff are kind, and the dreams won't stop. Some shelters keep you safe. Others keep you.</p>
+              <p>At its core, Cerulean Tether is about how governments and corporations take advantage of low-income communities and communities of color when they're at their most vulnerable.</p>
+              <p>As climate change makes disasters more frequent, more people will be displaced, and more communities will be exposed to that kind of exploitation.</p>
             </div>
           </section>
         </Reveal>
