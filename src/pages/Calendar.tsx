@@ -8,6 +8,7 @@ import { isOnCall, personLabel } from "@/lib/roles";
 import { addDays, fmtDate, initials, iso, parseClock, windowText } from "@/lib/format";
 import type { CalEntry, Person, ShootDay } from "@/lib/types";
 import { Filter } from "@/components/Filter";
+import { YourCalls } from "@/components/YourCalls";
 import { EASE, PageHead, Reveal } from "@/components/Motion";
 
 type St = "available" | "tentative" | "unavailable";
@@ -42,6 +43,7 @@ export default function Calendar() {
   const [calls, setCalls] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<{ msg: string; kind?: string } | null>(null);
+  const [view, setView] = useState<"all" | "mine">("all");
   const [filter, setFilter] = useState<"all" | "cast" | "crew" | "extra" | "me">("all");
   const [month, setMonth] = useState(() => todayIso > "2026-12-31" ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date(2026, 10, 1));
   const [dir, setDir] = useState(1);
@@ -72,7 +74,13 @@ export default function Calendar() {
     return m;
   }, [entries]);
   const callMap = useMemo(() => { const m: Record<string, any> = {}; calls.forEach(x => (m[x.person_id + "|" + x.day_id] = x)); return m; }, [calls]);
-  const shootBy = useMemo(() => { const m: Record<string, ShootDay[]> = {}; days.forEach(x => (m[x.shoot_date] = m[x.shoot_date] || []).push(x)); return m; }, [days]);
+  // "mine" view: only the shoot days this person is called on; every other date is just a plain date.
+  const mine = view === "mine" && !!me;
+  const shootBy = useMemo(() => {
+    const m: Record<string, ShootDay[]> = {};
+    days.filter(x => !mine || isOnCall(me!, x)).forEach(x => (m[x.shoot_date] = m[x.shoot_date] || []).push(x));
+    return m;
+  }, [days, mine, me]);
 
   const partsOf = useCallback((p: Person, date: string): Part[] => {
     const es = entriesBy[p.id + "|" + date];
@@ -89,7 +97,7 @@ export default function Calendar() {
     if (!parts.length) return null;
     return { ...parts.reduce((a, b) => (RANK[b.s] > RANK[a.s] ? b : a)), parts };
   }, [partsOf]);
-  const visible = useMemo(() => filter === "me" ? (me ? [me] : []) : filter === "all" ? people : people.filter(p => p.department === filter), [filter, me, people]);
+  const visible = useMemo(() => mine ? [me!] : filter === "me" ? (me ? [me] : []) : filter === "all" ? people : people.filter(p => p.department === filter), [mine, filter, me, people]);
   const tally = useCallback((date: string) => {
     const n = { available: 0, tentative: 0, unavailable: 0, out: [] as [Person, St][] };
     visible.forEach(p => { const st = statusOf(p, date); if (st) { n[st.s]++; if (st.s !== "available") n.out.push([p, st.s]); } });
@@ -144,14 +152,16 @@ export default function Calendar() {
     <main className="page cal-page" id="main">
       <PageHead slate="Who's free, when" title="The calendar" lede="Pick any date and mark whether you're free. Shoot days glow blue. A white dot means someone on that day's call sheet can't make it." />
 
-      <div className="stats" aria-label="Summary">
+      {me && <Filter label="View" value={view} onChange={setView} options={[["all", "Full calendar"], ["mine", "My call dates"]]} />}
+
+      {!mine && <div className="stats" aria-label="Summary">
         {([["Days to camera", daysToCamera], ["Cast & crew signed up", people.length], ["Dates marked", Object.keys(entriesBy).length], ["Shoot-day conflicts", conflicts]] as [string, number][]).map(([cap, n], i) => (
           <motion.div key={cap} className={"stat" + (i === 3 ? " bad" : "")} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 + i * 0.07, ease: EASE }}>
             <span className="num">{loaded ? <CountingNumber number={n} transition={{ stiffness: 90, damping: 24 }} /> : 0}</span>
             <span className="cap">{cap}</span>
           </motion.div>
         ))}
-      </div>
+      </div>}
 
       {status && <div className={"notice" + (status.kind ? " " + status.kind : "")}>{status.msg}</div>}
 
@@ -170,7 +180,7 @@ export default function Calendar() {
               </h2>
               <button className="btn small" type="button" aria-label="Next month" onClick={() => go(new Date(month.getFullYear(), month.getMonth() + 1, 1), 1)}>→</button>
             </div>
-            <Filter value={filter} onChange={setFilter} options={[["all", "Everyone"], ["cast", "Cast"], ["crew", "Crew"], ["extra", "Extras"], ["me", "Just me"]]} />
+            {!mine && <Filter value={filter} onChange={setFilter} options={[["all", "Everyone"], ["cast", "Cast"], ["crew", "Crew"], ["extra", "Extras"], ["me", "Just me"]]} />}
           </div>
           <div className="cal-grid" aria-hidden="true">{DOW.map(d => <div key={d} className="cal-dow">{d}</div>)}</div>
           <motion.div key={monthKey} className="cal-grid" role="grid" aria-label="Month" ref={gridRef} onKeyDown={onGridKey}
@@ -221,7 +231,9 @@ export default function Calendar() {
         </aside>
       </div>
 
-      <Reveal>
+      {mine && <YourCalls all />}
+
+      {!mine && <Reveal>
         <section className="panel" aria-labelledby="chart-h">
           <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
             <div className="page-head"><div className="slate">Nov 23 – Dec 24</div><h2 id="chart-h">Availability chart</h2></div>
@@ -230,15 +242,15 @@ export default function Calendar() {
           <p className="hint" style={{ margin: 0 }}>How many people marked each date. Shoot days are marked in blue. Click a column to open that date.</p>
           <Chart visible={visible} tally={tally} shootBy={shootBy} onPick={d => { const dd = new Date(d + "T12:00:00"); go(new Date(dd.getFullYear(), dd.getMonth(), 1), 1); select(d, false); gridRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" }); }} />
         </section>
-      </Reveal>
+      </Reveal>}
 
-      <Reveal>
+      {!mine && <Reveal>
         <section className="panel" aria-labelledby="heat-h">
           <h2 id="heat-h">Everyone, day by day</h2>
           <p className="hint" style={{ margin: 0 }}>Hover a square for the reason. A cut corner means specific times only. Older call-date answers show here too.</p>
           <div className="scroll" style={{ padding: 10 }}><Heat list={visible} partsOf={partsOf} shootBy={shootBy} filter={filter} /></div>
         </section>
-      </Reveal>
+      </Reveal>}
     </main>
   );
 }

@@ -13,11 +13,9 @@ export default function Home() {
       <Hero />
       <main className="page">
         <AnnouncementsSection />
-        <YourCalls />
         <Reveal>
           <section className="synopsis" aria-labelledby="syn-h">
             <div className="page-head">
-              <div className="slate">Logline</div>
               <h2 id="syn-h">Nobody else remembers</h2>
               <dl className="facts">
                 <div><dt>Written by</dt><dd>Staci Tranquille</dd></div>
@@ -35,6 +33,8 @@ export default function Home() {
           </section>
         </Reveal>
 
+        <CastBoard />
+
         <section aria-labelledby="tl-h" style={{ display: "grid", gap: 14 }}>
           <Reveal>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
@@ -45,7 +45,7 @@ export default function Home() {
           <Timeline stops={stops} />
         </section>
 
-        <CastBoard />
+        <YourCalls />
       </main>
     </>
   );

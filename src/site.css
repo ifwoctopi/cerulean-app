@@ -530,3 +530,21 @@ td small.part{margin-left:4px;font-size:10px;opacity:.7}
 .yc-tag.warn{color:#9ec5ff;opacity:1}
 .yc-tag.bad{color:#ff9b9b;opacity:1}
 @media (max-width:760px){.yc-item{grid-template-columns:minmax(0,1fr)}.yc-tag{white-space:normal}}
+
+/* Cohesive cards: they blend into the black page (no fill, a hairline edge) and glow white on hover, focus or press. */
+:root{--glow-w:0 0 0 1px rgba(255,255,255,.55),0 0 26px rgba(255,255,255,.16)}
+.panel,.day,.sum,.file,.stat,.arow,.ann,.yc-item,.entry,.issue,.actor,.dossier,.board-add,.cal-page .panel{
+  background:transparent;border:1px solid rgba(255,255,255,.09);
+  transition:box-shadow .2s,border-color .2s,background .2s}
+.panel:hover,.day:hover,.sum:hover,.file:hover,.stat:hover,.arow:hover,.ann:hover,.yc-item:hover,.entry:hover,.issue:hover,.actor:hover,.dossier:hover,
+.panel:focus-within,.day:focus-within,.ann:focus-within,.arow:focus-within,.file:focus-within,.sum:focus-within,
+.panel:active,.day:active,.sum:active,.file:active,.stat:active,.arow:active,.ann:active,.yc-item:active,.entry:active,.actor:active{
+  background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.6);box-shadow:var(--glow-w)}
+.yc-item.past{opacity:.55}
+.yc-tag.warn{color:var(--text)}
+.shootcard{box-shadow:none;transition:box-shadow .2s,border-color .2s}
+.shootcard:hover{border-color:rgba(255,255,255,.6);box-shadow:var(--glow-w)}
+@media (hover:none){.panel:hover,.day:hover,.sum:hover,.file:hover,.stat:hover,.arow:hover,.ann:hover,.yc-item:hover,.entry:hover{box-shadow:none;background:transparent;border-color:rgba(255,255,255,.09)}}
+
+/* The calendar's own panels stay still; only the individual cells glow. */
+.cal-page .panel:hover,.cal-page .panel:focus-within,.cal-page .panel:active{background:transparent;border-color:rgba(255,255,255,.09);box-shadow:none}

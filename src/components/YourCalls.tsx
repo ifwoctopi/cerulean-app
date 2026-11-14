@@ -9,7 +9,7 @@ import type { CalEntry, Person, ShootDay } from "@/lib/types";
 import { Reveal } from "@/components/Motion";
 
 /** Home-page list for signed-in members: the upcoming shoot days they're called on, with their own call time. */
-export function YourCalls() {
+export function YourCalls({ all = false }: { all?: boolean }) {
   const { profile } = useAuth();
   const [me, setMe] = useState<Person | null>(null);
   const [days, setDays] = useState<ShootDay[]>([]);
@@ -38,7 +38,7 @@ export function YourCalls() {
 
   if (!profile?.member || !loaded) return null;
   const today = iso(new Date());
-  const upcoming = me ? days.filter(d => d.shoot_date >= today && isOnCall(me, d)).sort((a, b) => a.shoot_date.localeCompare(b.shoot_date)) : [];
+  const upcoming = me ? days.filter(d => (all || d.shoot_date >= today) && isOnCall(me, d)).sort((a, b) => a.shoot_date.localeCompare(b.shoot_date)) : [];
 
   const answer = (d: ShootDay) => {
     const es = mine.filter(e => e.entry_date === d.shoot_date);
@@ -57,8 +57,8 @@ export function YourCalls() {
   return (
     <Reveal>
       <section className="yourcalls" aria-labelledby="yc-h">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
-          <div className="page-head"><div className="slate">Your schedule</div><h2 id="yc-h">Your call dates</h2></div>
+        <div className="row" style={{ justifyContent: all ? "flex-end" : "space-between", alignItems: "end" }}>
+          {!all && <div className="page-head"><div className="slate">Your schedule</div><h2 id="yc-h">Your call dates</h2></div>}
           <Link className="btn small" to="/calendar">Mark availability</Link>
         </div>
         {!me ? (
@@ -70,7 +70,7 @@ export function YourCalls() {
             {upcoming.map(d => {
               const a = answer(d);
               return (
-                <li key={d.id} className="yc-item">
+                <li key={d.id} className={"yc-item" + (d.shoot_date < today ? " past" : "")}>
                   <div className="yc-date">{fmtDate(d.shoot_date, { weekday: "short", month: "short", day: "numeric" })}</div>
                   <div className="yc-main">
                     <b>{d.day_label}{d.title ? " · " + d.title : ""}</b>
