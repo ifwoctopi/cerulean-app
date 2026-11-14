@@ -21,6 +21,14 @@ const RANK: Record<St, number> = { available: 0, tentative: 1, unavailable: 2 };
 const scheduled = isOnCall;
 const label = personLabel;
 const timeText = (e: CalEntry) => [windowText(e), e.time_note].filter(Boolean).join(" · ");
+/** Who an event needs: each called character with the person playing them, then extras, then "all crew". */
+function calledText(day: ShootDay, people: Person[]) {
+  const parts = day.characters.map(c => {
+    const who = people.filter(p => p.department !== "crew" && (p.characters || []).includes(c)).map(p => p.name);
+    return c === "Extras" ? (who.length ? "Extras (" + who.join(", ") + ")" : "Extras") : who.length ? c + " (" + who.join(", ") + ")" : c;
+  });
+  return [...parts, "all crew"].join(" · ");
+}
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function Calendar() {
@@ -259,6 +267,7 @@ function Drawer({ ds, days: _days, people, me, isAdmin, profileId, statusOf, par
           <span className="meta">{day.location}{day.address ? " — " + day.address : ""}</span>
           <span className="meta">{day.crew_call === "TBD" ? "Times to be announced" : `Crew ${day.crew_call} · Cast ${day.cast_call} · Wrap ${day.wrap}`}</span>
           <span className="meta">Scenes {day.scenes}</span>
+          <span className="meta">Called: {calledText(day, people)}</span>
         </div>
       ))}
       <h3>{rows.length ? "Who's marked" : "Nobody's marked this date"}</h3>
